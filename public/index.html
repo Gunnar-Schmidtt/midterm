@@ -8,55 +8,49 @@
 <body>
     <div class="names-section">
         <h2>Names List</h2>
-        <form id="nameForm" autocomplete="off">
-            <input type="text" id="nameInput" placeholder="Enter name" required maxlength="40">
-            <button type="submit">Add Name</button>
+        <form id="form" autocomplete="off">
+            <input type="text" id="input" placeholder="Enter name and emoji separated by space" required maxlength="80">
+            <button type="submit">Add Entry</button>
         </form>
-        <ul id="namesList"></ul>
+        <ul id="list"></ul>
     </div>
 
     <script>
-        const nameForm = document.getElementById('nameForm');
-        const nameInput = document.getElementById('nameInput');
-        const namesList = document.getElementById('namesList');
+        const form = document.getElementById('form');
+        const input = document.getElementById('input');
+        const list = document.getElementById('list');
 
-        async function fetchNames() {
+        async function fetchEntries() {
             const res = await fetch('/api/names');
-            const names = await res.json();
-            renderNames(names);
+            const entries = await res.json();
+            renderEntries(entries);
         }
 
-        function renderNames(names) {
-            namesList.innerHTML = '';
-            names.forEach(n => {
+        function renderEntries(entries) {
+            list.innerHTML = '';
+            entries.forEach(entry => {
                 const li = document.createElement('li');
-                li.textContent = n.name;
-                const delBtn = document.createElement('button');
-                delBtn.textContent = 'Delete';
-                delBtn.style.marginLeft = '1em';
-                delBtn.onclick = async () => {
-                    await fetch(`/api/names/${n._id}`, { method: 'DELETE' });
-                    fetchNames();
-                };
-                li.appendChild(delBtn);
-                namesList.appendChild(li);
+                li.textContent = `${entry.name} ${entry.emoji}`;
+                list.appendChild(li);
             });
         }
 
-        nameForm.addEventListener('submit', async e => {
+        form.addEventListener('submit', async e => {
             e.preventDefault();
-            const name = nameInput.value.trim();
-            if (!name) return;
-            await fetch('/api/names', {
+            const [name, emoji] = input.value.split(' ');
+            if (!name || !emoji) return;
+
+            await fetch('/api/init-emoji', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name })
+                body: JSON.stringify({ name, emoji })
             });
-            nameInput.value = '';
-            fetchNames();
+
+            input.value = '';
+            fetchEntries();
         });
 
-        fetchNames();
+        fetchEntries();
     </script>
 </body>
 </html>

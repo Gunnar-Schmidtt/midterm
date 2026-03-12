@@ -9,8 +9,11 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const uri = process.env.MONGO_URI;
 
+const PORT = process.env.PORT || 3000;
+
 app.use(express.static(join(__dirname, 'public')));
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 const client = new MongoClient(uri, {
   serverApi: {
@@ -19,6 +22,8 @@ const client = new MongoClient(uri, {
     deprecationErrors: true,
   }
 });
+
+const yourNameAndEmoji = { name: 'Gunnar', emoji: '😁' };
 
 async function connectToMongo() {
   try {
@@ -31,21 +36,63 @@ async function connectToMongo() {
 }
 connectToMongo();
 
-// --- Names API ---
-// CREATE - Add name
-app.post('/api/names', async (req, res) => {
+app.post('/api/get-name', async (req, res) => {
   try {
-    const { name } = req.body;
-    if (!name) {
-      return res.status(400).json({ error: 'Name is required' });
+    const { userName } = req.body;
+
+    if (!userName) {
+      return res.status(400).json({ error: 'missing name' });
     }
+
     const db = client.db('cis486');
-    const collection = db.collection('names');
-    const result = await collection.insertOne({ name });
-    res.json({ message: 'Name recorded', id: result.insertedId });
+    const collection = db.collection('exam');
+
+    const result = await collection.findOne({ name: userName });
+
+    if (!result) {
+      return res.status(404).json({ error: 'Name not found' });
+    }
+
+    res.json({ 
+      message: 'Name found', 
+      name: result.name,
+      emoji: result.emoji 
+    });
+  }
+  catch (error) {
+    console.error('Error retrieving name:', error);
+    res.status(500).json({ error: 'Failed to retrieve name' });
+  }
+
+})
+
+app.post('/api/init-emoji', async (req, res) => {
+  try {
+    const { name, emoji } = req.body;
+
+    if (!name || !emoji) {
+      return res.status(400).json({ error: 'Name and emoji are required' });
+    }
+
+    const db = client.db('cis486');
+    const collection = db.collection('exam');
+
+    // Check if name already exists
+    const existingEntry = await collection.findOne({ name });
+
+    if (existingEntry) {
+      return res.json({ 
+        message: 'Name already exists', 
+        data: existingEntry 
+      });
+    }
+
+    // Insert new entry
+    const result = await collection.insertOne({ name, emoji });
+    res.json({ message: 'Name and emoji recorded', id: result.insertedId });
   } catch (error) {
-    console.error('Error adding name:', error);
-    res.status(500).json({ error: 'Failed to add name' });
+    console.error('Error creating entry:', error);
+    res.status(500).json({ error: 'Failed to create entry' });
   }
 });
 
@@ -53,7 +100,7 @@ app.post('/api/names', async (req, res) => {
 app.get('/api/names', async (req, res) => {
   try {
     const db = client.db('cis486');
-    const collection = db.collection('names');
+    const collection = db.collection('exam');
     const names = await collection.find({}).toArray();
     res.json(names);
   } catch (error) {
@@ -67,7 +114,7 @@ app.delete('/api/names/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const db = client.db('cis486');
-    const collection = db.collection('names');
+    const collection = db.collection('exam');
     const result = await collection.deleteOne({ _id: new ObjectId(id) });
     if (result.deletedCount === 0) {
       return res.status(404).json({ error: 'Name not found' });
@@ -83,37 +130,6 @@ app.delete('/api/names/:id', async (req, res) => {
 app.get('/', (req, res) => {
   res.sendFile(join(__dirname, 'public', 'index.html'));
 });
-
-// API Health/Endpoints Documentation
-
-// ADD NOTE - Add a dated note to a timer
-app.post('/api/timers/:id/notes', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { text, date } = req.body;
-    if (!text) {
-      return res.status(400).json({ error: 'Note text is required' });
-    }
-    const db = client.db('cis486');
-    const collection = db.collection('timers');
-    const note = {
-      text,
-      date: date ? new Date(date) : new Date()
-    };
-    const result = await collection.updateOne(
-      { _id: new ObjectId(id) },
-      { $push: { notes: note } }
-    );
-    if (result.matchedCount === 0) {
-      return res.status(404).json({ error: 'Timer not found' });
-    }
-    res.json({ message: 'Note added!' });
-  } catch (error) {
-    console.error('Error adding note:', error);
-    res.status(500).json({ error: 'Failed to add note' });
-  }
-});
-
 
 
 // Start the server
