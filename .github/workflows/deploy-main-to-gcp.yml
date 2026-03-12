@@ -15,11 +15,8 @@ jobs:
         run: |
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
-
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-
-          # safer than StrictHostKeyChecking=no
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/midterm
+          chmod 600 ~/.ssh/midterm
           ssh-keyscan -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
 
@@ -28,19 +25,37 @@ jobs:
         env:
           SSH_USER: ${{ secrets.SSH_USER }}
           SSH_HOST: ${{ secrets.SSH_HOST }}
-          APP_DIR:  ${{ vars.APP_DIR }}
+          APP_DIR: /home/gsorensenschmidt/midterm
           PM2_NAME: ${{ vars.PM2_NAME }}
         run: |
-          ssh -i ~/.ssh/id_rsa -T "$SSH_USER@$SSH_HOST" <<EOF
+          ssh -i ~/.ssh/midterm -T "gsorensenschmidt@$SSH_HOST" << EOF
             set -e
 
-            cd "$APP_DIR"
+            echo "WHOAMI:"
+            whoami
 
+            echo "HOME DIR:"
+            echo $HOME
+
+            echo "APP_DIR VALUE:"
+            echo "$APP_DIR"
+
+            echo "PWD BEFORE CD:"
+            pwd
+
+            echo "TRYING TO CD INTO APP_DIR:"
+            cd "$APP_DIR" || { echo "FAILED TO CD INTO $APP_DIR"; exit 1;}
+
+            echo "PWD AFTER CD:"
+            pwd
+
+            echo "LISTING DIRECTORY CONTENTS:"
+            ls -la
+            
             git pull
-            sudo npm ci
-
+            npm ci
+            
             pm2 delete "$PM2_NAME" || true
             pm2 start -f app.mjs --name "$PM2_NAME"
-
             pm2 save
           EOF
